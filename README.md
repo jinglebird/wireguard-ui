@@ -4,6 +4,8 @@
 
 A web user interface to manage your WireGuard setup.
 
+Docker hub image: https://hub.docker.com/r/faridcs/wireguard-ui
+
 ## Features
 
 - Friendly UI
