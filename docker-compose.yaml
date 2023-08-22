@@ -17,7 +17,7 @@ services:
 
   # WireGuard-UI service
   wireguard-ui:
-    image: ngoduykhanh/wireguard-ui:latest
+    image: faridcs/wireguard-ui:latest
     container_name: wireguard-ui
     depends_on:
       - wireguard
