@@ -12,6 +12,8 @@ Just remind generate a ADMIN_KEY with
 openssl rand -hex 16
 ```
 
+And use encrypt AES-CBC token with that when you call rest-api as **Authentication** header
+
 ## Features
 
 - Friendly UI
