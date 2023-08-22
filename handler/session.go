@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"github.com/ngoduykhanh/wireguard-ui/auth"
 	"net/http"
 
 	"github.com/labstack/echo-contrib/session"
@@ -20,6 +21,36 @@ func ValidSession(next echo.HandlerFunc) echo.HandlerFunc {
 			}
 		}
 		return next(c)
+	}
+}
+
+func ValidApi(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		authHeaderKey := c.Request().Header.Get("Authentication")
+
+		if authHeaderKey != "" {
+			// Initialize the APIKeyService with AdminKeyName
+			keyService, err := auth.NewKeyService(auth.AdminKeyName)
+			keyService.SetKey(auth.AdminKeyName)
+
+			if err != nil {
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Server error"})
+			}
+
+			// Decrypt the header's value
+			decryptedValue, err := keyService.Decrypt(authHeaderKey)
+			if err != nil {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid authorization header"})
+			}
+
+			if decryptedValue != auth.AdminKeyName {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized access"})
+			}
+
+			return next(c)
+		}
+
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid authentication header"})
 	}
 }
 

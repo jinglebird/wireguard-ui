@@ -1,27 +1,69 @@
 version: "3"
 
 services:
-  wg:
-    build: .
-    #image: ngoduykhanh/wireguard-ui:latest
-    container_name: wgui
+  # WireGuard VPN service
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard
     cap_add:
       - NET_ADMIN
-    network_mode: host
+    volumes:
+      - ./config:/config
+    ports:
+      # Port for WireGuard-UI
+      - "5001:5000"
+      # Port of the WireGuard VPN server
+      - "51820:51820/udp"
+
+  # WireGuard-UI service
+  wireguard-ui:
+    image: ngoduykhanh/wireguard-ui:latest
+    container_name: wireguard-ui
+    depends_on:
+      - wireguard
+    cap_add:
+      - NET_ADMIN
+    # Use the network of the 'wireguard' service
+    # This enables to show active clients in the status page
+    network_mode: service:wireguard
     environment:
       - SENDGRID_API_KEY
       - EMAIL_FROM_ADDRESS
       - EMAIL_FROM_NAME
       - SESSION_SECRET
-      - WGUI_USERNAME=alpha
-      - WGUI_PASSWORD=this-unusual-password
+      - WGUI_USERNAME=admin
+      - WGUI_PASSWORD=password
       - WG_CONF_TEMPLATE
-      - WGUI_MANAGE_START=false
-      - WGUI_MANAGE_RESTART=false
+      - WGUI_MANAGE_START=true
+      - WGUI_MANAGE_RESTART=true
     logging:
       driver: json-file
       options:
         max-size: 50m
     volumes:
       - ./db:/app/db
-      - /etc/wireguard:/etc/wireguard
+      - ./config:/etc/wireguard
+
+#  wg:
+#    build: .
+#    container_name: wgui
+#    cap_add:
+#      - NET_ADMIN
+#    network_mode: host
+#    environment:
+#      - SENDGRID_API_KEY
+#      - EMAIL_FROM_ADDRESS
+#      - EMAIL_FROM_NAME
+#      - SESSION_SECRET
+#      - WGUI_USERNAME=alpha
+#      - WGUI_PASSWORD=this-unusual-password
+#      - WG_CONF_TEMPLATE
+#      - WGUI_MANAGE_START=false
+#      - WGUI_MANAGE_RESTART=false
+#    logging:
+#      driver: json-file
+#      options:
+#        max-size: 50m
+#    volumes:
+#      - ./db:/app/db
+#      - /etc/wireguard:/etc/wireguard
