@@ -53,7 +53,7 @@ COPY . /build
 RUN cp -r /build/custom/ assets/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-X 'main.appVersion=${APP_VERSION}' -X 'main.buildTime=${BUILD_TIME}' -X 'main.gitCommit=${GIT_COMMIT}'" -a -o wg-ui .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o wg-ui .
 
 # Release stage
 FROM alpine:3.16
@@ -61,7 +61,7 @@ FROM alpine:3.16
 RUN addgroup -S wgui && \
     adduser -S -D -G wgui wgui
 
-RUN apk --no-cache add ca-certificates wireguard-tools jq
+RUN apk --no-cache add ca-certificates wireguard-tools jq bash dos2unix
 
 WORKDIR /app
 
@@ -70,8 +70,10 @@ RUN mkdir -p db
 # Copy binary files
 COPY --from=builder --chown=wgui:wgui /build/wg-ui .
 RUN chmod +x wg-ui
+
 COPY init.sh .
 
+RUN dos2unix init.sh
 RUN chmod +x init.sh
 
 EXPOSE 5000/tcp

@@ -43,7 +43,7 @@ func ValidApi(next echo.HandlerFunc) echo.HandlerFunc {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid authorization header"})
 			}
 
-			if decryptedValue != auth.AdminKeyName {
+			if decryptedValue != auth.ClientKeyName {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized access"})
 			}
 
