@@ -11,7 +11,7 @@ services:
       - ./config:/config
     ports:
       # Port for WireGuard-UI
-      - "5000:5000"
+      - "5002:5000"
       # Port of the WireGuard VPN server
       - "51820:51820/udp"
 
@@ -27,7 +27,7 @@ services:
     # This enables to show active clients in the status page
     network_mode: service:wireguard
     environment:
-      - ADMIN_KEY=<Generate a key with openssl rand -hex 16>
+      - ADMIN_KEY=183226c075cc8c410166e0925c722364
       - SENDGRID_API_KEY
       - EMAIL_FROM_ADDRESS
       - EMAIL_FROM_NAME
