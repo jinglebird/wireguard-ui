@@ -6,6 +6,12 @@ A web user interface to manage your WireGuard setup.
 
 Docker hub image: https://hub.docker.com/r/faridcs/wireguard-ui
 
+Just remind generate a ADMIN_KEY with 
+
+```bash
+openssl rand -hex 16
+```
+
 ## Features
 
 - Friendly UI

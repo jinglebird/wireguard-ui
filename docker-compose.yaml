@@ -27,6 +27,7 @@ services:
     # This enables to show active clients in the status page
     network_mode: service:wireguard
     environment:
+      - ADMIN_KEY=<Generate a key with openssl rand -hex 16>
       - SENDGRID_API_KEY
       - EMAIL_FROM_ADDRESS
       - EMAIL_FROM_NAME
