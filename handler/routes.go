@@ -473,6 +473,145 @@ func NewClient(db store.IStore) echo.HandlerFunc {
 	}
 }
 
+// NewClientWithApi handler
+func NewClientWithApi(db store.IStore, tmplDir fs.FS) echo.HandlerFunc {
+	return func(c echo.Context) error {
+
+		var client model.Client
+		c.Bind(&client)
+
+		// read server information
+		server, err := db.GetServer()
+		if err != nil {
+			log.Error("Cannot fetch server from database: ", err)
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, err.Error()})
+		}
+
+		// suggest a ip
+		suggestedIPs := make([]string, 0)
+		allocatedIPs, err := util.GetAllocatedIPs("")
+		if err != nil {
+			log.Error("Cannot suggest ip allocation. Failed to get list of allocated ip addresses: ", err)
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{
+				false, "Cannot suggest ip allocation: failed to get list of allocated ip addresses",
+			})
+		}
+		for _, cidr := range server.Interface.Addresses {
+			ip, err := util.GetAvailableIP(cidr, allocatedIPs)
+			if err != nil {
+				log.Error("Failed to get available ip from a CIDR: ", err)
+				continue
+			}
+			if strings.Contains(ip, ":") {
+				suggestedIPs = append(suggestedIPs, fmt.Sprintf("%s/128", ip))
+			} else {
+				suggestedIPs = append(suggestedIPs, fmt.Sprintf("%s/32", ip))
+			}
+			break
+		}
+
+		client.AllocatedIPs = suggestedIPs
+		client.AllowedIPs = []string{"0.0.0.0/0"}
+		client.ExtraAllowedIPs = []string{}
+		client.Enabled = true
+		client.UseServerDNS = true
+
+		// validate the input Allocation IPs
+		check, err := util.ValidateIPAllocation(server.Interface.Addresses, allocatedIPs, client.AllocatedIPs)
+		if !check {
+			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, fmt.Sprintf("%s", err)})
+		}
+
+		// validate the input AllowedIPs
+		if util.ValidateAllowedIPs(client.AllowedIPs) == false {
+			log.Warnf("Invalid Allowed IPs input from user: %v", client.AllowedIPs)
+			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, "Allowed IPs must be in CIDR format"})
+		}
+
+		// validate extra AllowedIPs
+		if util.ValidateExtraAllowedIPs(client.ExtraAllowedIPs) == false {
+			log.Warnf("Invalid Extra AllowedIPs input from user: %v", client.ExtraAllowedIPs)
+			return c.JSON(http.StatusBadRequest, jsonHTTPResponse{false, "Extra AllowedIPs must be in CIDR format"})
+		}
+
+		// gen ID
+		guid := xid.New()
+		client.ID = guid.String()
+
+		// gen Wireguard key pair
+		if client.PublicKey == "" {
+			key, err := wgtypes.GeneratePrivateKey()
+			if err != nil {
+				log.Error("Cannot generate wireguard key pair: ", err)
+				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Cannot generate Wireguard key pair"})
+			}
+			client.PrivateKey = key.String()
+			client.PublicKey = key.PublicKey().String()
+		} else {
+			_, err := wgtypes.ParseKey(client.PublicKey)
+			if err != nil {
+				log.Error("Cannot verify wireguard public key: ", err)
+				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Cannot verify Wireguard public key"})
+			}
+			// check for duplicates
+			clients, err := db.GetClients(false)
+			if err != nil {
+				log.Error("Cannot get clients for duplicate check")
+				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Cannot get clients for duplicate check"})
+			}
+			for _, other := range clients {
+				if other.Client.PublicKey == client.PublicKey {
+					log.Error("Duplicate Public Key")
+					return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Duplicate Public Key"})
+				}
+			}
+
+		}
+
+		if client.PresharedKey == "" {
+			presharedKey, err := wgtypes.GenerateKey()
+			if err != nil {
+				log.Error("Cannot generated preshared key: ", err)
+				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{
+					false, "Cannot generate Wireguard preshared key",
+				})
+			}
+			client.PresharedKey = presharedKey.String()
+		} else if client.PresharedKey == "-" {
+			client.PresharedKey = ""
+			log.Infof("skipped PresharedKey generation for user: %v", client.Name)
+		} else {
+			_, err := wgtypes.ParseKey(client.PresharedKey)
+			if err != nil {
+				log.Error("Cannot verify wireguard preshared key: ", err)
+				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{false, "Cannot verify Wireguard preshared key"})
+			}
+		}
+		client.CreatedAt = time.Now().UTC()
+		client.UpdatedAt = client.CreatedAt
+
+		// write client to the database
+		if err := db.SaveClient(client); err != nil {
+			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{
+				false, err.Error(),
+			})
+		}
+		log.Infof("Created wireguard client: %v", client)
+
+		go func() {
+			server, _ := db.GetServer()
+			clients, _ := db.GetClients(false)
+			users, _ := db.GetUsers()
+			settings, _ := db.GetGlobalSettings()
+
+			util.WriteWireGuardServerConfig(tmplDir, server, clients, users, settings)
+			util.UpdateHashes(db)
+		}()
+
+		return c.JSON(http.StatusOK, client)
+	}
+}
+
 // EmailClient handler to send the configuration via email
 func EmailClient(db store.IStore, mailer emailer.Emailer, emailSubject, emailContent string) echo.HandlerFunc {
 	type clientIdEmailPayload struct {
@@ -959,6 +1098,7 @@ func SuggestIPAllocation(db store.IStore) echo.HandlerFunc {
 		// each server's network addresses.
 		suggestedIPs := make([]string, 0)
 		allocatedIPs, err := util.GetAllocatedIPs("")
+		fmt.Println("allocatedIPs", allocatedIPs)
 		if err != nil {
 			log.Error("Cannot suggest ip allocation. Failed to get list of allocated ip addresses: ", err)
 			return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{
@@ -967,6 +1107,7 @@ func SuggestIPAllocation(db store.IStore) echo.HandlerFunc {
 		}
 		for _, cidr := range server.Interface.Addresses {
 			ip, err := util.GetAvailableIP(cidr, allocatedIPs)
+			fmt.Println("cidr", cidr, "ip", ip)
 			if err != nil {
 				log.Error("Failed to get available ip from a CIDR: ", err)
 				return c.JSON(http.StatusInternalServerError, jsonHTTPResponse{

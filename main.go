@@ -27,7 +27,7 @@ var (
 	buildTime  = fmt.Sprintf(time.Now().UTC().Format("01-02-2006 15:04:05"))
 	// configuration variables
 	flagDisableLogin   bool   = false
-	flagBindAddress    string = "0.0.0.0:5000"
+	flagBindAddress    string = "0.0.0.0:5001"
 	flagSmtpHostname   string = "127.0.0.1"
 	flagSmtpPort       int    = 25
 	flagSmtpUsername   string
@@ -192,7 +192,7 @@ func main() {
 	app.DELETE(util.BasePath+"/wake_on_lan_host/:mac_address", handler.DeleteWakeOnHost(db), handler.ValidSession, handler.ContentTypeJson)
 	app.PUT(util.BasePath+"/wake_on_lan_host/:mac_address", handler.WakeOnHost(db), handler.ValidSession, handler.ContentTypeJson)
 
-	router.SetupAPIRoutes(app, db)
+	router.SetupAPIRoutes(app, db, tmplDir)
 
 	// strip the "assets/" prefix from the embedded directory so files can be called directly without the "assets/"
 	// prefix
