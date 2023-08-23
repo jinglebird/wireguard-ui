@@ -11,8 +11,9 @@ import (
 
 func SetupAPIRoutes(app *echo.Echo, db store.IStore) {
 	secret := os.Getenv("ADMIN_KEY")
-	app.Use(middleware.ValidateHMAC(secret))
+	apiGroup := app.Group(util.BasePath + "/api")
+	apiGroup.Use(middleware.ValidateHMAC(secret))
 
-	app.POST(util.BasePath+"/api/new-client", handler.NewClient(db), handler.ContentTypeJson)
-	app.POST(util.BasePath+"/api/remove-client", handler.RemoveClient(db), handler.ContentTypeJson)
+	app.POST(util.BasePath+"/new-client", handler.NewClient(db), handler.ContentTypeJson)
+	app.POST(util.BasePath+"/remove-client", handler.RemoveClient(db), handler.ContentTypeJson)
 }
